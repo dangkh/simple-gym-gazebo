@@ -38,11 +38,11 @@ class DangEnv(gym.Env):
 
 		# Launch the simulation with the given launchfile name
 		rospy.init_node('gym', anonymous=True)
-		self.launchfile = "~/catkin_ws/src/dang_gazebo/launch/turtlebot3_world.launch"
+		self.launchfile = "/home/dangkieu/catkin_ws/src/dang_gazebo/launch/turtlebot3_world.launch"
 		if not path.exists(self.launchfile):
 			raise IOError(launchfile+" does not exist")
 
-		subprocess.Popen(["roslaunch","-p", self.port, fullpath])
+		subprocess.Popen(["roslaunch", self.launchfile])
 		print ("Gazebo launched!")
 
 		self.gzclient_pid = 0
