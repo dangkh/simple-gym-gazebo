@@ -1,1 +1,1 @@
-from gym_dang_gazebo.envs.dang_env import DangEnv
+from gym_gazebo_dang.envs.dang_env import DangEnv
