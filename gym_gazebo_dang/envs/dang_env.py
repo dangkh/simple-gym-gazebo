@@ -18,12 +18,13 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from gym.utils import seeding
 from cv_bridge import CvBridge, CvBridgeError
+import cv2
 
 import skimage as skimage
 from skimage import transform, color, exposure
 from skimage.transform import rotate
 from skimage.viewer import ImageViewer
-
+import time
 
 
 
@@ -48,14 +49,11 @@ class DangEnv(gym.Env):
 		self.gzclient_pid = 0
 		
 		#recall service and topic
-
-		#TODO
-		#TODO
-		#TODO
-		#TODO
-		#TODO
-		#TODO
-		#TODO
+			
+		self.vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
+		self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
+		self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
+		self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
 
 
 
@@ -63,14 +61,44 @@ class DangEnv(gym.Env):
 		self.launchfile = file_name
 		print ("Config file launch to:", file_name)
 
+	def calculate_observation(self,data):
+		min_range = 0.21
+		done = False
+		for i, item in enumerate(data.ranges):
+			if (min_range > data.ranges[i] > 0):
+				done = True
+		return done
+
 	def step(self, action):
 		state = None # return image
 		reward = -10000 # return value 
 		done = False # stop or not
 
+		rospy.wait_for_service('/gazebo/unpause_physics')
+		try:
+			self.unpause()
+		except (rospy.ServiceException) as e:
+			print ("/gazebo/unpause_physics service call failed")
+
+		if action == 0: #FORWARD
+			vel_cmd = Twist()
+			vel_cmd.linear.x = 0.2
+			vel_cmd.angular.z = 0.0
+			self.vel_pub.publish(vel_cmd)
+		elif action == 1: #LEFT
+			vel_cmd = Twist()
+			vel_cmd.linear.x = 0.05
+			vel_cmd.angular.z = 0.2
+			self.vel_pub.publish(vel_cmd)
+		elif action == 2: #RIGHT
+			vel_cmd = Twist()
+			vel_cmd.linear.x = 0.05
+			vel_cmd.angular.z = -0.2
+			self.vel_pub.publish(vel_cmd)    
+
 		return state, reward, done
 
-	def _render(self, mode="human", close=False):
+	def render(self, mode="human", close=False):
 		if close:
 			tmp = os.popen("ps -Af").read()
 			proccount = tmp.count('gzclient')
@@ -88,7 +116,7 @@ class DangEnv(gym.Env):
 		else:
 			self.gzclient_pid = 0
 
- 	def _close(self):
+ 	def close(self):
 	# Kill gzclient, gzserver and roscore
 		tmp = os.popen("ps -Af").read()
 		gzclient_count = tmp.count('gzclient')
@@ -107,3 +135,51 @@ class DangEnv(gym.Env):
 
 		if (gzclient_count or gzserver_count or roscore_count or rosmaster_count >0):
 			os.wait()
+
+	def reset(self):
+		rospy.wait_for_service('/gazebo/reset_simulation')
+		try:
+			#reset_proxy.call()
+			self.reset_proxy()
+		except (rospy.ServiceException) as e:
+			print ("/gazebo/reset_simulation service call failed")
+
+		# Unpause simulation to make observation
+		rospy.wait_for_service('/gazebo/unpause_physics')
+		try:
+			self.unpause()
+		except (rospy.ServiceException) as e:
+			print ("/gazebo/unpause_physics service call failed")
+
+		time.sleep(5)
+		#TODO
+		counter = 0
+		data = None
+		while counter <= 200 and data == None:
+			counter += 1
+			data = rospy.wait_for_message("/image_raw_dang", Image, timeout=10)
+			image = cvtMsg_Img(data) 
+		if counter > 200:
+			print ("/image_raw_dang topic get image failed")
+		#TODO
+
+		observation = image
+
+		rospy.wait_for_service('/gazebo/pause_physics')
+		try:
+			self.pause()
+		except (rospy.ServiceException) as e:
+			print ("/gazebo/pause_physics service call failed")
+
+		return observation
+
+
+def cvtMsg_Img(data):
+	try:
+		cv_image = CvBridge().imgmsg_to_cv2(data, "bgr8")
+	except CvBridgeError as e:
+		print(e)
+	# (rows,cols,channels) = cv_image.shape
+	# cv2.imshow("Image window", cv_image)
+	# cv2.waitKey(0)
+	return cv_image
