@@ -70,7 +70,7 @@ class DangEnv(gym.Env):
 		return done
 
 	def step(self, action):
-		state = None # return image
+		observation = None # return image
 		reward = -10000 # return value 
 		done = False # stop or not
 
@@ -82,7 +82,7 @@ class DangEnv(gym.Env):
 
 		if action == 0: #FORWARD
 			vel_cmd = Twist()
-			vel_cmd.linear.x = 0.2
+			vel_cmd.linear.x = 1
 			vel_cmd.angular.z = 0.0
 			self.vel_pub.publish(vel_cmd)
 		elif action == 1: #LEFT
@@ -95,8 +95,37 @@ class DangEnv(gym.Env):
 			vel_cmd.linear.x = 0.05
 			vel_cmd.angular.z = -0.2
 			self.vel_pub.publish(vel_cmd)    
+		
+		# calculate done value using laser data
+		data = None 
+		while data == None :
+			try:
+				data = rospy.wait_for_message("/scan", LaserScan, timeout=10)
+			except Exception as e:
+				raise e
 
-		return state, reward, done
+		done = self.calculate_observation(data)
+
+		# retrieval image from camera in robot
+
+		counter = 0
+		data = None
+		while counter <= 200 and data == None:
+			counter += 1
+			data = rospy.wait_for_message("/image_raw_dang", Image, timeout=10)
+			image = cvtMsg_Img(data) 
+		if counter > 200:
+			print ("/image_raw_dang topic get image failed")
+		
+		rospy.wait_for_service('/gazebo/pause_physics')
+		try:
+			self.pause()
+		except (rospy.ServiceException) as e:
+			print ("/gazebo/pause_physics service call failed")
+
+		observation = image
+
+		return observation, reward, done
 
 	def render(self, mode="human", close=False):
 		if close:
@@ -183,3 +212,9 @@ def cvtMsg_Img(data):
 	# cv2.imshow("Image window", cv_image)
 	# cv2.waitKey(0)
 	return cv_image
+
+## TO DO 
+## return action list 
+## judge reward
+## judge done
+## set view angle
