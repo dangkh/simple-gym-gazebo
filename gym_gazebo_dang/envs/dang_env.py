@@ -87,13 +87,13 @@ class DangEnv(gym.Env):
 			self.vel_pub.publish(vel_cmd)
 		elif action == 1: #LEFT
 			vel_cmd = Twist()
-			vel_cmd.linear.x = 0.05
-			vel_cmd.angular.z = 0.2
+			vel_cmd.linear.x = 0
+			vel_cmd.angular.z = 0.8
 			self.vel_pub.publish(vel_cmd)
 		elif action == 2: #RIGHT
 			vel_cmd = Twist()
-			vel_cmd.linear.x = 0.05
-			vel_cmd.angular.z = -0.2
+			vel_cmd.linear.x = 0
+			vel_cmd.angular.z = -0.8
 			self.vel_pub.publish(vel_cmd)    
 		
 		# calculate done value using laser data
@@ -217,4 +217,5 @@ def cvtMsg_Img(data):
 ## return action list 
 ## judge reward
 ## judge done
-## set view angle
+## edit bug distance in tb3
+## edit bug move in tb3 and step(action)
