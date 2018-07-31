@@ -5,4 +5,9 @@ introduced by elerrobot, simpler and take a moment to understand
 2. DEMO
 run file demo: python demo.py
 run visualization: gzclient
+3. FAQ
+How to kill ros and gazebo?
+Using killall. Exp: 
+	killall -9 rosmaster
+	killall -9 gzserver
 

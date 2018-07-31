@@ -50,7 +50,7 @@ class DangEnv(gym.Env):
 		
 		#recall service and topic
 			
-		self.vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
+		self.vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 		self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
 		self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
 		self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
@@ -69,6 +69,33 @@ class DangEnv(gym.Env):
 				done = True
 		return done
 
+	def reset_vel(self):
+		vel_cmd = Twist()
+		vel_cmd.linear.x = 0.0
+		vel_cmd.angular.z = 0.0
+		self.vel_pub.publish(vel_cmd)
+
+	def rotate(self, value):
+		# value = 1 LEFT, -1 RIGHT
+		vel_cmd = Twist()
+		PI = 3.1415926535897
+		angular_speed = PI
+		relative_angle = PI/4
+		vel_cmd.linear.x=0
+		vel_cmd.linear.y=0
+		vel_cmd.linear.z=0
+		vel_cmd.angular.x = 0
+		vel_cmd.angular.y = 0
+		vel_cmd.angular.z = angular_speed*value
+		t0 = rospy.Time.now().to_sec()
+		current_angle = 0
+		while(current_angle < relative_angle):
+			self.vel_pub.publish(vel_cmd)
+			t1=rospy.Time.now().to_sec()
+			current_angle = angular_speed*(t1-t0)
+		vel_cmd.angular.z = 0
+		self.vel_pub.publish(vel_cmd)
+
 	def step(self, action):
 		observation = None # return image
 		reward = -10000 # return value 
@@ -79,23 +106,30 @@ class DangEnv(gym.Env):
 			self.unpause()
 		except (rospy.ServiceException) as e:
 			print ("/gazebo/unpause_physics service call failed")
-
+		distance = 0.25
+		t0 = rospy.Time.now().to_sec()
 		if action == 0: #FORWARD
 			vel_cmd = Twist()
-			vel_cmd.linear.x = 1
-			vel_cmd.angular.z = 0.0
+			vel_cmd.linear.x = -1
+			vel_cmd.linear.y=0
+			vel_cmd.linear.z=0
+			vel_cmd.angular.x = 0
+			vel_cmd.angular.y = 0
+			speed = 1
+			vel_cmd.angular.z = 0
+			current_distance = 0
+			counter = 0 
+			while(current_distance < distance):
+				self.vel_pub.publish(vel_cmd)
+				t1=rospy.Time.now().to_sec()
+				current_distance= speed*(t1-t0)
+				counter += 1 
+			vel_cmd.linear.x = 0
 			self.vel_pub.publish(vel_cmd)
 		elif action == 1: #LEFT
-			vel_cmd = Twist()
-			vel_cmd.linear.x = 0
-			vel_cmd.angular.z = 0.8
-			self.vel_pub.publish(vel_cmd)
+			self.rotate(1)
 		elif action == 2: #RIGHT
-			vel_cmd = Twist()
-			vel_cmd.linear.x = 0
-			vel_cmd.angular.z = -0.8
-			self.vel_pub.publish(vel_cmd)    
-		
+			self.rotate(-1)
 		# calculate done value using laser data
 		data = None 
 		while data == None :
@@ -217,5 +251,5 @@ def cvtMsg_Img(data):
 ## return action list 
 ## judge reward
 ## judge done
-## edit bug distance in tb3
+## edit bug camera distance in tb3
 ## edit bug move in tb3 and step(action)
