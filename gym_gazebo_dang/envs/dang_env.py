@@ -79,8 +79,8 @@ class DangEnv(gym.Env):
 		# value = 1 LEFT, -1 RIGHT
 		vel_cmd = Twist()
 		PI = 3.1415926535897
-		angular_speed = PI
-		relative_angle = PI/4
+		angular_speed = PI/16
+		relative_angle = PI/16
 		vel_cmd.linear.x=0
 		vel_cmd.linear.y=0
 		vel_cmd.linear.z=0
@@ -89,12 +89,19 @@ class DangEnv(gym.Env):
 		vel_cmd.angular.z = angular_speed*value
 		t0 = rospy.Time.now().to_sec()
 		current_angle = 0
+		counter = 0
 		while(current_angle < relative_angle):
-			self.vel_pub.publish(vel_cmd)
+			counter += 1
+			self.publish_vel_cmd(vel_cmd, counter)
 			t1=rospy.Time.now().to_sec()
 			current_angle = angular_speed*(t1-t0)
 		vel_cmd.angular.z = 0
-		self.vel_pub.publish(vel_cmd)
+		self.publish_vel_cmd(vel_cmd, -1)
+
+	def publish_vel_cmd(self, value_vel, counter):
+		self.vel_pub.publish(value_vel)
+		print(counter)
+		print(value_vel)
 
 	def step(self, action):
 		observation = None # return image
@@ -106,11 +113,11 @@ class DangEnv(gym.Env):
 			self.unpause()
 		except (rospy.ServiceException) as e:
 			print ("/gazebo/unpause_physics service call failed")
-		distance = 0.25
+		distance = 0.5
 		t0 = rospy.Time.now().to_sec()
 		if action == 0: #FORWARD
 			vel_cmd = Twist()
-			vel_cmd.linear.x = -1
+			vel_cmd.linear.x = -0.25
 			vel_cmd.linear.y=0
 			vel_cmd.linear.z=0
 			vel_cmd.angular.x = 0
@@ -120,12 +127,12 @@ class DangEnv(gym.Env):
 			current_distance = 0
 			counter = 0 
 			while(current_distance < distance):
-				self.vel_pub.publish(vel_cmd)
+				self.publish_vel_cmd(vel_cmd, counter)
 				t1=rospy.Time.now().to_sec()
 				current_distance= speed*(t1-t0)
 				counter += 1 
 			vel_cmd.linear.x = 0
-			self.vel_pub.publish(vel_cmd)
+			self.publish_vel_cmd(vel_cmd, -1)
 		elif action == 1: #LEFT
 			self.rotate(1)
 		elif action == 2: #RIGHT
@@ -141,7 +148,11 @@ class DangEnv(gym.Env):
 		done = self.calculate_observation(data)
 
 		# retrieval image from camera in robot
-
+		rospy.wait_for_service('/gazebo/pause_physics')
+		# try:
+		# 	self.pause()
+		# except (rospy.ServiceException) as e:
+		# 	print ("/gazebo/pause_physics service call failed")
 		counter = 0
 		data = None
 		while counter <= 200 and data == None:
@@ -151,11 +162,7 @@ class DangEnv(gym.Env):
 		if counter > 200:
 			print ("/image_raw_dang topic get image failed")
 		
-		rospy.wait_for_service('/gazebo/pause_physics')
-		try:
-			self.pause()
-		except (rospy.ServiceException) as e:
-			print ("/gazebo/pause_physics service call failed")
+		
 
 		observation = image
 
@@ -248,8 +255,6 @@ def cvtMsg_Img(data):
 	return cv_image
 
 ## TO DO 
-## return action list 
 ## judge reward
 ## judge done
-## edit bug camera distance in tb3
 ## edit bug move in tb3 and step(action)
