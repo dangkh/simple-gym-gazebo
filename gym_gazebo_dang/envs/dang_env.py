@@ -11,11 +11,13 @@ from std_srvs.srv import Empty
 import random
 import roslaunch
 import sys
+import math
 
 from geometry_msgs.msg import Twist
 from std_srvs.srv import Empty
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from gym.utils import seeding
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -55,6 +57,8 @@ class DangEnv(gym.Env):
 		self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
 		self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
 
+		## set position of goal 
+		self.goal = [[-4.6, -0.01, 0],[3.95, 0.06, 0]]
 
 
 	def config_launchfile(self, file_name):
@@ -80,7 +84,7 @@ class DangEnv(gym.Env):
 		vel_cmd = Twist()
 		PI = 3.1415926535897
 		angular_speed = PI/16
-		relative_angle = PI/16
+		relative_angle = PI/8
 		vel_cmd.linear.x=0
 		vel_cmd.linear.y=0
 		vel_cmd.linear.z=0
@@ -100,8 +104,6 @@ class DangEnv(gym.Env):
 
 	def publish_vel_cmd(self, value_vel, counter):
 		self.vel_pub.publish(value_vel)
-		print(counter)
-		print(value_vel)
 
 	def step(self, action):
 		observation = None # return image
@@ -113,7 +115,7 @@ class DangEnv(gym.Env):
 			self.unpause()
 		except (rospy.ServiceException) as e:
 			print ("/gazebo/unpause_physics service call failed")
-		distance = 0.5
+		distance = 1
 		t0 = rospy.Time.now().to_sec()
 		if action == 0: #FORWARD
 			vel_cmd = Twist()
@@ -163,10 +165,29 @@ class DangEnv(gym.Env):
 			print ("/image_raw_dang topic get image failed")
 		
 		
-
+		done, reward = self.check_reward()
 		observation = image
-
+		print reward
 		return observation, reward, done
+
+	def check_reward(self):
+		done = False
+		reward = -10000
+		data = rospy.wait_for_message("/odom", Odometry, timeout=10)
+		xx = data.pose.pose.position.x
+		yy = data.pose.pose.position.y
+		for goalI in self.goal:
+			vx = goalI[0]-xx
+			vy = goalI[1]-yy
+			tmp = math.sqrt(vx*vx + vy*vy)
+			if tmp <= 0.5: 
+				done = True
+				reward = 10000
+				break
+		return done, reward
+
+	def get_action_list(self):
+		return self.action_list
 
 	def render(self, mode="human", close=False):
 		if close:
@@ -255,6 +276,3 @@ def cvtMsg_Img(data):
 	return cv_image
 
 ## TO DO 
-## judge reward
-## judge done
-## edit bug move in tb3 and step(action)
